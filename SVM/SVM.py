@@ -25,7 +25,12 @@ def hinge_loss(scores, labels):
     '''
     assert len(scores.shape) == 1
     assert len(labels.shape) == 1
-    return ### YOUR CODE HERE
+
+    loss = np.maximum(0, 1 - labels * scores)
+
+
+    return np.mean(loss)
+    
 
 
 class SVM(BaseEstimator, ClassifierMixin):
