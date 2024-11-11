@@ -17,7 +17,10 @@ def rbf(x_1, x_2, sigma=1.):
         kernel function values for all pairs of samples from x_1 and x_2
         torch.tensor of type torch.float32 shaped `(#samples_1, #samples_2)`
     '''
-    distances = torch.exp( (-1.0) * torch.cdist(x_1, x_2, p=2)**2 / (sigma * sigma))
+    x_1_sq = torch.sum(x_1**2, axis=-1)
+    x_2_sq = torch.sum(x_2**2, axis=-1)
+    dist_noexp = x_1_sq[:,None] + x_2_sq[None,:] - 2 * np.dot(x_1,x_2.T)
+    distances = np.exp(-(dist_noexp))
     return torch.Tensor(distances).type(torch.float32)
 
 def hinge_loss(scores, labels):
@@ -25,12 +28,8 @@ def hinge_loss(scores, labels):
     '''
     assert len(scores.shape) == 1
     assert len(labels.shape) == 1
+    return torch.clamp(1 - labels * scores, min = 0).mean()
 
-    loss = np.maximum(0, 1 - labels * scores)
-
-
-    return np.mean(loss)
-    
 
 
 class SVM(BaseEstimator, ClassifierMixin):
@@ -45,7 +44,7 @@ class SVM(BaseEstimator, ClassifierMixin):
             kernel function values for all pairs of samples from x_1 and x_2
             torch.tensor shaped `(#samples_1, #samples_2)` of type torch.float32
         '''
-        return torch.mm(x_1, x_2.T)
+        return torch.mm(x_1, x_2.T) # ?
     
     def __init__(
         self,
@@ -88,7 +87,7 @@ class SVM(BaseEstimator, ClassifierMixin):
                 
                 optimizer.zero_grad()     # Manually zero the gradient buffers of the optimizer
                 
-                preds = torch.matmul(k_batch, self.betas)
+                preds = k_batch @ self.betas + self.bias
                 preds = preds.flatten()
                 loss = self.lmbd * self.betas[batch_inds].T @ k_batch @ self.betas + hinge_loss(preds, y_batch)
                 loss.backward()           # Backpropagation
@@ -107,7 +106,7 @@ class SVM(BaseEstimator, ClassifierMixin):
             batch = torch.from_numpy(batch).float()
             K = self.kernel_function(batch, self.X)
             # compute the margin values for every object in the batch
-            margin = torch.matmul(K, self.betas) + self.bias
+            margin = (K @ self.betas + self.bias).flatten()
 
             return margin
 
